@@ -700,7 +700,7 @@ function R:OnEnable()
     local bossmod = Core:NewBoss({encounterID = 2051})
     function bossmod:COMBAT_LOG_EVENT_UNFILTERED(aceEvent,timeStamp,event,hideCaster,sourceGUID,sourceName,sourceFlags,sourceFlags2,destGUID,destName,destFlags,destFlags2,spellId,spellName,spellSchool,...)
       local now = GetTime()
-      if event == "SPELL_AURA_APPLIED" then
+      if (event == "SPELL_AURA_APPLIED" or event == "SPELL_AURA_APPLIED_DOSE") then
         --p1
         if spellId == 234310 and Core:GetPlayerGUID() == destGUID then
           Core:SetIcon(10,GetSpellTexture(spellId),1,60)

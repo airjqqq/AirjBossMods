@@ -52,9 +52,9 @@ function Core:OnInitialize()
       bossMod.basetime = GetTime()
       bossMod.phase = 1
       self:SetIcon(0,nil,1,25,nil,nil,nil,"一般BUFF")
-      self:SetIconT({index = 0, duration = 25, count = "一般BUFF"})
-      self:SetIconT({index = 1, duration = 5, size = 2, count = "关键BUFF"})
-      self:SetIconT({index = 3, duration = 15, count = "一般BUFF"})
+      self:SetIconT({index = 0, texture = GetSpellTexture(234310), duration = 60, count = "一般BUFF"})
+      self:SetIconT({index = 1, texture = GetSpellTexture(240910), duration = 5, size = 2, count = "关键BUFF"})
+      self:SetIconT({index = 3, texture = GetSpellTexture(236710), duration = 15, count = "一般BUFF"})
       self:SetTextT({text1 = "|cff00ffff先来的: {number}|r",expires = GetTime()+5})
       self:SetTextT({text1 = "|cffffff00后来的: {number}|r",expires = GetTime()+3,start = GetTime() + 1})
     end
@@ -346,6 +346,7 @@ function Core:UpdateIcons()
       count:SetFont("Fonts\\ARKai_C.TTF",72,"OUTLINE")
       count:SetJustifyH("RIGHT")
       count:SetJustifyV("BOTTOM")
+      count:SetWordWrap(false)
       icon.count = count
 
       self.icons[k] = icon
@@ -359,13 +360,16 @@ function Core:UpdateIcons()
         icon:SetSize(isize, isize)
         local x,y = (k)%10,-math.floor(k/10)
         icon:SetPoint("TOPLEFT",anchor,"BOTTOMLEFT",x*size,y*size)
-        icon.count:SetFont("Fonts\\ARKai_C.TTF",isize*0.4,"OUTLINE")
+        local countText = v.count or ""
+        local countLen = string.len(countText)
+        local countSize = min(isize*0.4,2*isize/countLen)
+        icon.count:SetFont("Fonts\\ARKai_C.TTF",countSize,"OUTLINE")
+        icon.count:SetText(countText)
       end
       if v.justSetUp then
         icon.castIconTexture:SetTexture(v.texture)
         icon.castIconCooldown:SetCooldown(v.expires - v.duration, v.duration)
         icon.castIconCooldown:SetReverse(v.reverse)
-        icon.count:SetText(v.count or "")
         icon:Show()
       end
       icon.show = true
