@@ -20,6 +20,11 @@ local anchors = {
   -- "board",
   -- "map",
 }
+local anchorNames = {
+  icon = "图标锚点",
+  text = "文字锚点",
+  timeline = "时间轴锚点",
+}
 local defaultAnchors = {
   icon = {"TOP",UIParent,"TOP",0,-100,400,20},
   text = {"CENTER",UIParent,"CENTER",0,20,400,20},
@@ -42,7 +47,7 @@ function Core:OnInitialize()
     --   end
     -- end
     if str == "reset" then
-      db.anchors = nil
+      db.anchorPoints = nil
       for _, name in pairs(anchors) do
         self:ResetAnchor(name)
       end
@@ -92,11 +97,12 @@ end
 
 function Core:ResetAnchor(name)
   local anchor = self.anchors[name]
-  local data = db.anchors and db.anchors[name] or defaultAnchors[name] or {"CENTER",UIParent,"CENTER",0,0,200,20}
-  local a,b,c,x,y,w,h,hide = unpack(data)
+  local data = db.anchorPoints and db.anchorPoints[name] or defaultAnchors[name] or {"CENTER",UIParent,"CENTER",0,0,200,20}
+  local a,b,c,x,y,w,h = unpack(data)
   anchor:ClearAllPoints()
   anchor:SetPoint(a,b,c,x,y)
   anchor:SetSize(w,h)
+  local hide = db.anchorHides and db.anchorHides[name] or false
   if hide then anchor:Hide() else anchor:Show() end
 end
 
@@ -109,10 +115,6 @@ function Core:OnEnable()
     self.anchors[name] = anchor
     anchor.name = name
     self:ResetAnchor(name)
-    -- local data = db.anchors and db.anchors[name] or {"CENTER",UIParent,"CENTER",0,0,200,20}
-    -- local a,b,c,x,y,w,h = unpack(data)
-    -- anchor:SetPoint(a,b,c,x,y)
-    -- anchor:SetSize(w,h)
   	anchor:EnableMouse(true)
   	anchor:SetMovable(true)
     anchor:RegisterForDrag("LeftButton","RightButton")
@@ -134,10 +136,22 @@ function Core:OnEnable()
       self:StopMovingOrSizing()
       local offsetX,offsetY = self:GetLeft(),self:GetBottom()
       local width,height = self:GetSize()
-      db.anchors = db.anchors or {}
-      db.anchors[name] = {"BOTTOMLEFT","UIParent","BOTTOMLEFT",offsetX,offsetY,width,height }
+      db.anchorPoints = db.anchorPoints or {}
+      db.anchorPoints[name] = {"BOTTOMLEFT","UIParent","BOTTOMLEFT",offsetX,offsetY,width,height }
+      self.resizing = true
       self:SetScript("OnUpdate",nil)
   	end)
+
+    anchor:SetScript("OnEnter", function(self)
+      GameTooltip:AddLine("左键拖动 - 移动")
+      GameTooltip:AddLine("右键拖动 - 放缩")
+      GameTooltip:AddLine("Control点击 - 锁定")
+      GameTooltip:AddLine("/abm test - 测试")
+      GameTooltip:Show()
+    end)
+    anchor:SetScript("OnLeave",function(self)
+      GameTooltip:Hide()
+    end)
     local texture = anchor:CreateTexture()
     texture:SetColorTexture(0,0,0,0.5)
     texture:SetAllPoints()
@@ -145,7 +159,7 @@ function Core:OnEnable()
     local fontstring = anchor:CreateFontString(nil,"OVERLAY","GameFontHighlight")
     fontstring:SetFont("Fonts\\FRIZQT__.TTF",16,"MONOCHROME")
     -- fontstring:SetTextHeight(16)
-    fontstring:SetText(name)
+    fontstring:SetText(anchorNames[name])
   	fontstring:SetAllPoints()
 
     if db.hideAnchor then
@@ -221,7 +235,7 @@ function Core:Timer10ms()
 end
 
 function Core:ENCOUNTER_START(event,encounterID, name, difficulty, size)
-  print("ENCOUNTER_START",event,encounterID, name, difficulty, size)
+  -- print("ENCOUNTER_START",event,encounterID, name, difficulty, size)
   self.currentBoss = {
     encounterID = encounterID,
     name = name,
@@ -241,7 +255,7 @@ function Core:ENCOUNTER_START(event,encounterID, name, difficulty, size)
 end
 
 function Core:ENCOUNTER_END(event,encounterID, name, difficulty, size, success)
-  print("ENCOUNTER_END",event,encounterID, name, difficulty, size, success)
+  -- print("ENCOUNTER_END",event,encounterID, name, difficulty, size, success)
   local bossMod = self:GetCurrentBossMod()
   if bossMod then
     bossMod.difficulty = nil
@@ -276,6 +290,7 @@ end
   removes = now + 10,
   reverse = true,
   size = 1,
+  name = "",
   count = "",
 }
 ]]
@@ -289,6 +304,7 @@ function Core:SetIconT(data)
   local removes = data.removes or expires
   local reverse = data.reverse == nil and true or reverse
   local size = data.size or 1
+  local name = data.name or 1
   local count = data.count or ""
   self.iconDatas[index] = {
     texture = texture,
@@ -298,6 +314,7 @@ function Core:SetIconT(data)
     removes = removes,
     reverse = reverse,
     size = size,
+    name = name,
     count = count,
     justSetUp = true,
   }
@@ -349,12 +366,50 @@ function Core:UpdateIcons()
       count:SetWordWrap(false)
       icon.count = count
 
+      local name = icon:CreateFontString()
+      name:SetAllPoints()
+      name:SetFont("Fonts\\ARKai_C.TTF",72,"OUTLINE")
+      name:SetJustifyH("LEFT")
+      name:SetJustifyV("TOP")
+      name:SetWordWrap(false)
+      icon.name = name
+
+      local animationGroup = icon:CreateAnimationGroup()
+      local scale1 = animationGroup:CreateAnimation("Scale")
+      local scale2 = animationGroup:CreateAnimation("Scale")
+      scale1:SetDuration(0)
+      scale2:SetDuration(0.5)
+      scale1:SetOrder(1)
+      scale2:SetOrder(2)
+      local function setScale (icon, scale, center)
+        if center and scale ~= 1 then
+          local x, y = icon:GetCenter()
+          local w,h = UIParent:GetSize()
+          x = x - w/2
+          y = y - h/2
+          local rx, ry = x/(scale - 1), y/(scale - 1)
+          scale1:SetOrigin("CENTER", rx, ry)
+          scale2:SetOrigin("CENTER", rx, ry)
+        else
+          scale1:SetOrigin("CENTER", 0, 0)
+          scale2:SetOrigin("CENTER", 0, 0)
+        end
+
+        scale1:SetScale(1/scale)
+        scale2:SetScale(scale)
+      end
+      icon.SetScale = SetScale
+
+      local function play(icon)
+        animationGroup:Play()
+      end
+
       self.icons[k] = icon
     end
     if now > v.removes then
       icon:Hide()
       self.iconDatas[k] = nil
-    else
+    elseif now > v.start
       if resized or v.justSetUp then
         local isize = size*(v.size or 1)
         icon:SetSize(isize, isize)
@@ -365,13 +420,23 @@ function Core:UpdateIcons()
         local countSize = min(isize*0.4,2*isize/countLen)
         icon.count:SetFont("Fonts\\ARKai_C.TTF",countSize,"OUTLINE")
         icon.count:SetText(countText)
+        local nameText = v.name or ""
+        local nameLen = string.len(nameText)
+        local nameSize = min(isize*0.4,2*isize/nameLen)
+        icon.name:SetFont("Fonts\\ARKai_C.TTF",nameSize,"OUTLINE")
+        icon.name:SetText(nameText)
+        icon:SetScale(v.scale or 1, false)
       end
       if v.justSetUp then
         icon.castIconTexture:SetTexture(v.texture)
         icon.castIconCooldown:SetCooldown(v.expires - v.duration, v.duration)
         icon.castIconCooldown:SetReverse(v.reverse)
+        if v.scale then
+          icon:Play()
+        end
         icon:Show()
       end
+      v.justSetUp = false
       icon.show = true
     end
   end
@@ -428,7 +493,7 @@ function Core:UpdateText()
   local anchor = self.anchors.text
   local resized = anchor.resizing
   if resized then anchor.resizing = nil end
-  local size = anchor:GetWidth()/8
+  local size = anchor:GetWidth()/5
   local now = GetTime()
   local text = self.text
   if not text then
@@ -440,29 +505,40 @@ function Core:UpdateText()
     text.fontstring = fontstring
     self.text = text
   end
-
+  local earlyExpires, earlyExpiresData
   for i, data in pairs(self.textDatas) do
     if now > data.removes then
       tremove(self.textDatas,i)
     elseif now > data.start then
-      local ftext
-      if now > data.expires then
-        ftext = data.text2
-      else
-        ftext = data.text1
+      if not earlyExpires or data.expires<earlyExpires then
+        earlyExpires = data.expires
+        earlyExpiresData = data
       end
-      local num = getTimeString(data.expires-now)
-      ftext = string.gsub(ftext,"{number}",num)
-      text.fontstring:SetText(ftext)
-      if resized or data.justSetUp then
-        text.fontstring:SetFont("Fonts\\ARKai_C.TTF",size,"THICKOUTLINE")
-        text:SetSize(20*size,size)
-      end
-      text:Show()
-      return
     end
   end
-  text:Hide()
+  if earlyExpiresData then
+    local data = earlyExpiresData
+    local ftext
+    if now > data.expires then
+      ftext = data.text2
+    else
+      ftext = data.text1
+    end
+    local num = getTimeString(data.expires-now)
+    ftext = string.gsub(ftext,"{number}",num)
+    text.fontstring:SetText(ftext)
+    if resized or data.justSetUp then
+      text.fontstring:SetFont("Fonts\\ARKai_C.TTF",size,"THICKOUTLINE")
+      text:SetSize(20*size,size)
+    end
+    if data.justSetUp then
+      -- TODO play scale animation
+    end
+    data.justSetUp = false
+    text:Show()
+  else
+    text:Hide()
+  end
 end
 --screen
 --[[
